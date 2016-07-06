@@ -1908,27 +1908,28 @@ Appendix
 How to configure HTTP Proxy server
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-When a server is to be accessed through HTTP Proxy server, the implementation is as below.
+If you need to access the server through HTTP Proxy server, the HTTP Proxy server setting must be done in \ ``RequestFactory``\  property of \ ``RestTemplate``\  or in the system property and JVM startup arguments.
+
+If you set the system property and JVM startup arguments, it would affect the entire application therefore, introducing an example of configuration of \ ``RequestFactory``\  property that can be perform by setting the HTTP Proxy server for each \ ``RestTemplate``\.
+In addition, if the credentials of the HTTP Proxy server are not required in \ ``RequestFactory``\  property, it is also possible to use \ ``SimpleClientHttpRequestFactory``\  that is used by default in \ ``RestTemplate``\  but, 
+in the example, introduces a \ ``HttpComponentsClientHttpRequestFactory``\  that can be used when credentials are required and \ ``Apache HTTP Client``\  used within it.
+
 
 How to specify a HTTP Proxy server
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
-Specify HTTP Proxy server in the system property.
+Specify \ ``org.springframework.http.client.HttpComponentsClientHttpRequestFactory``\  as a destination of the HTTP Proxy server for the \ ``RestTemplate``\.
 
-**Implementation example wherein a HTTP proxy server is specified in the program**
+**pom.xml**
 
-.. code-block:: java
+.. code-block:: xml
 
-    @Value("${api.proxy.host}")
-    String proxyHost;
+    <!-- (1) -->
+    <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpclient</artifactId>
+    </dependency>
 
-    @Value("${api.proxy.portNum}")
-    String proxyPort;
-  
-    //...
-
-    System.setProperty("http.proxyHost", proxyHost); // (1)
-    System.setProperty("http.proxyPort", proxyPort); // (2)
 
 .. tabularcolumns:: |p{0.10\linewidth}|p{0.90\linewidth}|
 .. list-table::
@@ -1938,41 +1939,125 @@ Specify HTTP Proxy server in the system property.
     * - Sr. No.
       - Description
     * - | (1)
-      - | Specify host name and IP address of  HTTP proxy server in system property "\ ``"http.proxyHost"``\ ".
+      - | In order to use \ ``Apache HTTP Client``\  into the \ ``HttpComponentsClientHttpRequestFactory``\  add \ ``Apache HttpComponents Client``\  to the dependency library of pom.xml.
+        | Furthermore, the version of \ ``Apache HttpComponents Client``\  is managed by Spring IO Platform, \ ``Apache HttpComponents Client``\  version is not defined here.
+
+
+**Bean definition file**
+
+.. code-block:: xml
+
+    <!-- (1) -->
+    <bean id="proxyHttpClientBuilder" class="org.apache.http.impl.client.HttpClientBuilder" factory-method="create" >
+        <!-- (2) -->
+        <property name="proxy">
+            <bean class="org.apache.http.HttpHost" >
+                <constructor-arg index="0" value="${rscl.http.proxyHost}" />    <!-- (3) -->
+                <constructor-arg index="1" value="${rscl.http.proxyPort}" />    <!-- (4) -->
+            </bean>
+        </property>
+    </bean>
+
+    <!-- (5) -->
+    <bean id="proxyRestTemplate" class="org.springframework.web.client.RestTemplate" >
+        <constructor-arg>
+            <!-- (6) -->
+            <bean class="org.springframework.http.client.HttpComponentsClientHttpRequestFactory">
+                <!-- (7) -->
+                <constructor-arg>
+                    <bean factory-bean="proxyHttpClientBuilder" factory-method="build" />
+                </constructor-arg>
+            </bean>
+        </constructor-arg>
+    </bean>
+
+
+.. tabularcolumns:: |p{0.10\linewidth}|p{0.90\linewidth}|
+.. list-table::
+    :header-rows: 1
+    :widths: 10 90
+
+    * - Sr. No.
+      - Description
+    * - | (1)
+      - | Configure \ ``org.apache.http.client.HttpClient``\  using \ ``org.apache.http.impl.client.HttpClientBuilder``\.
     * - | (2)
-      - | Specify port number of HTTP Proxy server in system property "\ ``"http.proxyPort"``\ ".
-        | Port number of HTTP Proxy server
-
-**Specification example wherein HTTP Proxy server is specified in start-up parameter of JVM**
-
-.. code-block:: console
-
-    java -Dhttps.proxyHost={host name or ip address} -Dhttps.proxyPort={port number} ...
+      - | Configure the HTTP Proxy server \ ``org.apache.http.HttpHost``\  in the \ ``proxy``\  property of \ ``HttpClientBuilder``\.
+    * - | (3)
+      - | The value of \ ``rscl.http.proxyHost``\  key configured in property file will be configured as the host name of the HTTP Proxy server in constructor parameter of \ ``HttpHost``\.
+    * - | (4)
+      - | The value of \ ``rscl.http.proxyPort``\  key configured in property file will be configured as the port number of the HTTP Proxy server in constructor parameter of \ ``HttpHost``\.
+    * - | (5)
+      - | Define \ ``RestTemplate``\  bean.
+    * - | (6)
+      - | The \ ``RequestFactory``\  property gets configured in constructor by configuring \ ``org.springframework.http.client.HttpComponentsClientHttpRequestFactory``\  into constructor parameter of \ ``RestTemplate``\.
+    * - | (7)
+      - | Configure the \ ``HttpClient``\  object created from \ ``HttpClientBuilder``\  into constructor parameter of \ ``HttpComponentsClientHttpRequestFactory``\.
 
 
 How to specify credentials information of HTTP Proxy server
 """"""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
-When credential information (user name and password) are necessary while accessing HTTP Proxy server, specify credentials information in \ ``java.net.Authenticator``\ .
+When credential information (user name and password) are necessary while accessing HTTP Proxy server, specify credentials information using \ ``org.apache.http.impl.client.BasicCredentialsProvider``\.
 
-**How to specify credentials information of HTTP Proxy server**
+Since \ ``setCredentials``\  method of \ ``BasicCredentialsProvider``\  takes two arguments, the Bean cannot created using setter injection. For this reason, Bean is created using \ ``org.springframework.beans.factory.FactoryBean``\.
+
+**FactoryBean class**
 
 .. code-block:: java
 
-    @Value("${api.auth.userid}")
-    String userid;
+    import org.apache.http.auth.AuthScope;
+    import org.apache.http.auth.UsernamePasswordCredentials;
+    import org.apache.http.impl.client.BasicCredentialsProvider;
+    import org.springframework.beans.factory.FactoryBean;
+    import org.springframework.beans.factory.annotation.Value;
 
-    @Value("${api.auth.password}")
-    char[] password;
+    // (1)
+    public class BasicCredentialsProviderFactoryBean implements FactoryBean<BasicCredentialsProvider> {
 
-    //...
-  
-    Authenticator.setDefault(new Authenticator() { // (1)
-                @Override
-                protected PasswordAuthentication getPasswordAuthentication() {
-                    return new PasswordAuthentication(userid, password); // (2)
-                }
-    });
+        // (2)
+        @Value("${rscl.http.proxyHost}")
+        String host;
+
+        // (3)
+        @Value("${rscl.http.proxyPort}")
+        int port;
+
+        // (4)
+        @Value("${rscl.http.proxyUserName}")
+        String userName;
+
+        // (5)
+        @Value("${rscl.http.proxyPassword}")
+        String password;
+
+        @Override
+        public BasicCredentialsProvider getObject() throws Exception {
+
+            // (6)
+            AuthScope authScope = new AuthScope(this.host, this.port);
+
+            // (7)
+            UsernamePasswordCredentials usernamePasswordCredentials =
+                    new UsernamePasswordCredentials(this.userName, this.password);
+
+            // (8)
+            BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+            credentialsProvider.setCredentials(authScope, usernamePasswordCredentials);
+
+            return credentialsProvider;
+        }
+
+        @Override
+        public Class<?> getObjectType() {
+            return BasicCredentialsProvider.class;
+        }
+
+        @Override
+        public boolean isSingleton() {
+            return true;
+        }
+    }
 
 
 .. tabularcolumns:: |p{0.10\linewidth}|p{0.90\linewidth}|
@@ -1983,6 +2068,59 @@ When credential information (user name and password) are necessary while accessi
     * - Sr. No.
       - Description
     * - | (1)
-      - | Call \ ``setDefault``\  method of \ ``Authenticator``\  and specify \ ``Authenticator``\  object which returns credentials information of HTTP Proxy server.
+      - | Define the \ ``org.springframework.beans.factory.FactoryBean``\  class that implements the \ ``BasicCredentialsProviderFactoryBean``\  class.
+        | Configure \ ``BasicCredentialsProvider``\  in Bean type.
     * - | (2)
-      - | Return credential information of HTTP Proxy server (user name and password) as a return value of \ ``getPasswordAuthentication``\  method.
+      - | The value of \ ``rscl.http.proxyHost``\  key configured in property file will be configured as a host name of the HTTP Proxy server in instance variable.
+    * - | (3)
+      - | The value of \ ``rscl.http.proxyPort``\  key configured in property file will be configured as a port number of the HTTP Proxy server in instance variable.
+    * - | (4)
+      - | The value of \ ``rscl.http.proxyUserName``\  key configured in property file will be configured as a user name of the HTTP Proxy server in instance variable.
+    * - | (5)
+      - | The value of \ ``rscl.http.proxyPassword``\  key configured in property file will be configured as a password of the HTTP Proxy server in instance variable.
+    * - | (6)
+      - | Create \ ``org.apache.http.auth.AuthScope``\  and set the scope of credentials. The host name and port number of the HTTP Proxy server is specified in this example.  For other setting method, Refer \ `AuthScope (Apache HttpClient API) <https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/auth/AuthScope.html>`_\.
+    * - | (7)
+      - | Configure credential information by creating \ ``org.apache.http.auth.UsernamePasswordCredentials`` \.
+    * - | (8)
+      - | Configure credential information and credential scope by creating \ ``org.apache.http.impl.client.BasicCredentialsProvider``\  using \ ``setCredentials``\  method.
+
+
+**Bean definition file**
+
+.. code-block:: xml
+
+    <bean id="proxyHttpClientBuilder" class="org.apache.http.impl.client.HttpClientBuilder" factory-method="create">
+        <!-- (1) -->
+        <property name="defaultCredentialsProvider">
+            <bean class="com.example.restclient.BasicCredentialsProviderFactoryBean" />
+        </property>
+        <property name="proxy">
+            <bean id="proxyHost" class="org.apache.http.HttpHost">
+                <constructor-arg index="0" value="${rscl.http.proxyHost}" />
+                <constructor-arg index="1" value="${rscl.http.proxyPort}" />
+            </bean>
+        </property>
+    </bean>
+
+    <bean id="proxyRestTemplate" class="org.springframework.web.client.RestTemplate">
+        <constructor-arg>
+            <bean class="org.springframework.http.client.HttpComponentsClientHttpRequestFactory">
+                <constructor-arg>
+                    <bean factory-bean="proxyHttpClientBuilder" factory-method="build" />
+                </constructor-arg>
+            </bean>
+        </constructor-arg>
+    </bean>
+
+
+.. tabularcolumns:: |p{0.10\linewidth}|p{0.90\linewidth}|
+.. list-table::
+    :header-rows: 1
+    :widths: 10 90
+
+    * - Sr. No.
+      - Description
+    * - | (1)
+      - | Configure \ ``BasicCredentialsProvider``\  in \ ``defaultCredentialsProvider``\  property of the \ ``HttpClientBuilder``\.
+        | \ ``BasicCredentialsProvider``\  bean is created using \ ``BasicCredentialsProviderFactoryBean``\  implemented by \ ``FactoryBean``\.
