@@ -9,6 +9,12 @@
     * - 更新日付
       - 更新箇所
       - 更新内容
+    * - 2016-07-20
+      - :doc:`../ArchitectureInDetail/WebApplicationDetail/ExceptionHandling`
+      - Spring Framework 4.2.7対応に伴う修正
+      
+        * HTTPレスポンスヘッダー出力に関する説明内容を修正(\ `guideline#1965 <https://github.com/terasolunaorg/guideline/issues/1965>`_\ )
+        
     * - 2016-06-31
       - :doc:`../ArchitectureInDetail/GeneralFuncDetail/StringProcessing`
       - 記載内容の追加
