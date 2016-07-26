@@ -9,6 +9,12 @@
     * - 更新日付
       - 更新箇所
       - 更新内容
+    * - 2016-07-26
+      - :doc:`../ArchitectureInDetail/WebApplicationDetail/FileUpload`
+      - 記載内容の追加
+      
+        * ディレクトリトラバーサル攻撃に関する記載を追加 (\ `guideline#2010 <https://github.com/terasolunaorg/guideline/issues/2010>`_\ )
+
     * - 2016-06-31
       - :doc:`../ArchitectureInDetail/GeneralFuncDetail/StringProcessing`
       - 記載内容の追加
